@@ -2,7 +2,7 @@ pub mod manager;
 
 use thiserror::Error;
 
-use crate::backend::backend::{Server, UserInfo, VpnBackend};
+use crate::backend::core::{Server, UserInfo, VpnBackend};
 use crate::wireguard::{WireGuardConfig, WireGuardError};
 
 // ---------------------------------------------------------------------------

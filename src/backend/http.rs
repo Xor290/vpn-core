@@ -1,9 +1,7 @@
-#![cfg(feature = "http-backend")]
-
 use serde::Deserialize;
 use thiserror::Error;
 
-use super::backend::{
+use super::core::{
     AuthResponse, BackendError, ConnectionInfo, PeerStatus, Server, UserInfo, VpnBackend,
 };
 

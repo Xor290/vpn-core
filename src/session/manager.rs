@@ -1,4 +1,4 @@
-use crate::backend::backend::{Server, UserInfo, VpnBackend};
+use crate::backend::core::{Server, UserInfo, VpnBackend};
 use crate::wireguard::WireGuardConfig;
 
 use super::{Session, SessionError};
