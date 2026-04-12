@@ -1,7 +1,6 @@
+use super::{Session, SessionError};
 use crate::backend::core::{Server, UserInfo, VpnBackend};
 use crate::wireguard::WireGuardConfig;
-
-use super::{Session, SessionError};
 
 impl<B: VpnBackend> Session<B> {
     pub fn login(
@@ -9,7 +8,9 @@ impl<B: VpnBackend> Session<B> {
         username: &str,
         password: &str,
     ) -> Result<Self, SessionError<B::Error>> {
-        let auth = backend.login(username, password).map_err(SessionError::Backend)?;
+        let auth = backend
+            .login(username, password)
+            .map_err(SessionError::Backend)?;
         Ok(Self {
             backend,
             token: auth.token,
@@ -24,7 +25,9 @@ impl<B: VpnBackend> Session<B> {
         username: &str,
         password: &str,
     ) -> Result<Self, SessionError<B::Error>> {
-        let auth = backend.register(username, password).map_err(SessionError::Backend)?;
+        let auth = backend
+            .register(username, password)
+            .map_err(SessionError::Backend)?;
         Ok(Self {
             backend,
             token: auth.token,
@@ -59,7 +62,10 @@ impl<B: VpnBackend> Session<B> {
     }
 
     pub fn connect(&mut self, server_id: u64) -> Result<&WireGuardConfig, SessionError<B::Error>> {
-        let conn = self.backend.connect(server_id).map_err(SessionError::Backend)?;
+        let conn = self
+            .backend
+            .connect(server_id)
+            .map_err(SessionError::Backend)?;
         let wg_config = WireGuardConfig::parse(&conn.config)?;
 
         let servers = self.backend.list_servers().map_err(SessionError::Backend)?;
@@ -70,9 +76,14 @@ impl<B: VpnBackend> Session<B> {
     }
 
     pub fn disconnect(&mut self) -> Result<(), SessionError<B::Error>> {
-        let server = self.current_server.as_ref().ok_or(SessionError::NotConnected)?;
+        let server = self
+            .current_server
+            .as_ref()
+            .ok_or(SessionError::NotConnected)?;
         let server_id = server.id;
-        self.backend.disconnect(server_id).map_err(SessionError::Backend)?;
+        self.backend
+            .disconnect(server_id)
+            .map_err(SessionError::Backend)?;
         self.current_server = None;
         self.config = None;
         Ok(())
@@ -93,18 +104,25 @@ impl<B: VpnBackend> Session<B> {
         username: &str,
         password: &str,
     ) -> Result<(), SessionError<B::Error>> {
-        self.user = self.backend.update_profile(username, password).map_err(SessionError::Backend)?;
+        self.user = self
+            .backend
+            .update_profile(username, password)
+            .map_err(SessionError::Backend)?;
         Ok(())
     }
 
     pub fn delete_account(&mut self) -> Result<(), SessionError<B::Error>> {
-        self.backend.delete_account().map_err(SessionError::Backend)?;
+        self.backend
+            .delete_account()
+            .map_err(SessionError::Backend)?;
         self.current_server = None;
         self.config = None;
         Ok(())
     }
 
     pub fn logout(self) -> Result<(), SessionError<B::Error>> {
-        self.backend.logout(&self.token).map_err(SessionError::Backend)
+        self.backend
+            .logout(&self.token)
+            .map_err(SessionError::Backend)
     }
 }
