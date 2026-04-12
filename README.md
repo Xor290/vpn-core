@@ -32,6 +32,9 @@ vpn-core/
     │   ├── mod.rs          # Re-exports publics
     │   ├── backend.rs      # Trait VpnBackend + types communs
     │   └── http.rs         # Implémentation HTTP (feature: http-backend)
+    ├── custom_debug/
+    │   ├── mod.rs
+    │   └── debug.rs        # Impls Debug custom (secrets redactés)
     ├── session/
     │   ├── mod.rs          # Session<B> + SessionError<E>
     │   └── manager.rs      # login, connect, disconnect, switch_server...
@@ -48,6 +51,7 @@ vpn-core/
 | `serde` | Sérialisation | Non |
 | `serde_json` | JSON | Oui (`http-backend`) |
 | `thiserror` | Gestion d'erreurs | Non |
+| `zeroize` | Zéroïsation mémoire des secrets | Non |
 
 ## Installation
 
@@ -77,7 +81,7 @@ let servers = session.list_servers()?;
 
 // Se connecter — retourne la config WireGuard prête à appliquer
 let config = session.connect(servers[0].id)?;
-println!("{}", config.to_ini());
+println!("{}", config.to_ini()?);
 
 // Changer de serveur
 let new_config = session.switch_server(servers[1].id)?;
@@ -127,11 +131,20 @@ use vpn_core::wireguard::WireGuardConfig;
 let config = WireGuardConfig::parse(raw_ini_str)?;
 
 println!("{}", config.endpoint);      // "1.2.3.4:51820"
-println!("{}", config.private_key);
 
 // Resérialise en INI standard (prêt pour wg-quick)
-let ini = config.to_ini();
+// Retourne Err(WireGuardError::InvalidFormat) si un champ contient un saut de ligne
+let ini = config.to_ini()?;
 ```
+
+## Sécurité
+
+| Finding | Sévérité | Statut |
+|---|---|---|
+| Clé privée WireGuard et token auth affichés via `Debug` | MEDIUM | Corrigé — impls `Debug` custom dans `custom_debug/` |
+| Token auth en mémoire non zéroïsé après usage | MEDIUM | Corrigé — `Zeroizing<String>` + `ZeroizeOnDrop` sur `Session` et `HttpBackend` |
+| Injection INI via newline dans `to_ini()` | LOW | Corrigé — validation des champs avant sérialisation |
+| `PersistentKeepalive` parsé sans validation de plage | MEDIUM | Corrigé — parse en `u16` (borné 0–65535 par le type) |
 
 ## Build
 
