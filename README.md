@@ -30,9 +30,10 @@ vpn-core/
 └── src/
     ├── lib.rs
     ├── backend/
-    │   ├── mod.rs          # Re-exports publics
-    │   ├── backend.rs      # Trait VpnBackend + types communs
-    │   └── http.rs         # Implémentation HTTP (feature: http-backend)
+    │   ├── async_core.rs   # Trait AsyncVpnBackend 
+    │   ├── core.rs         # Trait VpnBackend + types communs
+    │   ├── http.rs         # Implémentation HTTP (feature: http-backend)
+    │   └── mod.rs          # Re-exports publics
     ├── custom_debug/
     │   ├── mod.rs
     │   └── debug.rs        # Impls Debug custom (secrets redactés)
