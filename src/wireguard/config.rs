@@ -1,6 +1,5 @@
 use super::*;
 impl WireGuardConfig {
-    /// Parse une config WireGuard au format INI retournée par l'API.
     pub fn parse(config_str: &str) -> Result<Self, WireGuardError> {
         let mut private_key = None;
         let mut address = None;
@@ -28,7 +27,7 @@ impl WireGuardConfig {
                     "Endpoint" => endpoint = Some(value.to_string()),
                     "AllowedIPs" => allowed_ips = Some(value.to_string()),
                     "PersistentKeepalive" => {
-                        persistent_keepalive = value.parse().unwrap_or(25);
+                        persistent_keepalive = value.parse::<u16>().unwrap_or(25).min(65535);
                     }
                     _ => {}
                 }
@@ -48,10 +47,21 @@ impl WireGuardConfig {
             persistent_keepalive,
         })
     }
+    pub fn to_ini(&self) -> Result<String, WireGuardError> {
+        for field in [
+            &self.private_key,
+            &self.address,
+            &self.dns,
+            &self.peer_public_key,
+            &self.endpoint,
+            &self.allowed_ips,
+        ] {
+            if field.contains('\n') || field.contains('\r') {
+                return Err(WireGuardError::InvalidFormat);
+            }
+        }
 
-    /// Sérialise la config en format INI WireGuard standard.
-    pub fn to_ini(&self) -> String {
-        format!(
+        Ok(format!(
             "[Interface]\n\
              PrivateKey = {}\n\
              Address = {}\n\
@@ -69,6 +79,6 @@ impl WireGuardConfig {
             self.endpoint,
             self.allowed_ips,
             self.persistent_keepalive,
-        )
+        ))
     }
 }

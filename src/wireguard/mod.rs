@@ -2,6 +2,7 @@ pub mod config;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use zeroize::Zeroize;
 
 #[derive(Error, Debug)]
 pub enum WireGuardError {
@@ -11,7 +12,7 @@ pub enum WireGuardError {
     InvalidFormat,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Zeroize)]
 pub struct WireGuardConfig {
     pub private_key: String,
     pub address: String,
