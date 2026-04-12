@@ -10,6 +10,7 @@ Contient toute la logique métier : authentification, gestion de session, parsin
 - Gestion de session : connexion, déconnexion, switch de serveur, profil
 - Parsing et sérialisation des configs WireGuard (format INI)
 - Backend HTTP inclus (feature `http-backend`, activé par défaut)
+- Supprime les secret en mémoire au moment d'un drop
 
 ## Ce que vpn-core NE fait PAS
 
