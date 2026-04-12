@@ -1,9 +1,9 @@
-use serde::Deserialize;
-use thiserror::Error;
-
 use super::core::{
     AuthResponse, BackendError, ConnectionInfo, PeerStatus, Server, UserInfo, VpnBackend,
 };
+use serde::Deserialize;
+use thiserror::Error;
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 // ---------------------------------------------------------------------------
 // Erreur HTTP
@@ -40,7 +40,7 @@ struct ApiErrorResp {
     error: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Zeroize, ZeroizeOnDrop)]
 struct AuthData {
     token: String,
     user: UserInfo,
@@ -57,7 +57,7 @@ struct ProfileUpdateResp {
 
 pub struct HttpBackend {
     pub(crate) base_url: String,
-    pub(crate) token: String,
+    pub(crate) token: Zeroizing<String>,
     pub(crate) client: reqwest::blocking::Client,
 }
 
@@ -65,13 +65,13 @@ impl HttpBackend {
     pub fn new(base_url: &str, token: &str) -> Self {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
-            token: token.to_string(),
+            token: Zeroizing::new(token.to_string()),
             client: reqwest::blocking::Client::new(),
         }
     }
 
     pub fn set_token(&mut self, token: &str) {
-        self.token = token.to_string();
+        self.token = Zeroizing::new(token.to_string());
     }
 
     fn parse_error(&self, resp: reqwest::blocking::Response) -> ApiError {
@@ -98,8 +98,8 @@ impl VpnBackend for HttpBackend {
 
         let body: ApiSuccess<AuthData> = resp.json()?;
         Ok(AuthResponse {
-            token: body.data.token,
-            user: body.data.user,
+            token: body.data.token.clone(),
+            user: body.data.user.clone(),
         })
     }
 
@@ -116,8 +116,8 @@ impl VpnBackend for HttpBackend {
 
         let body: ApiSuccess<AuthData> = resp.json()?;
         Ok(AuthResponse {
-            token: body.data.token,
-            user: body.data.user,
+            token: body.data.token.clone(),
+            user: body.data.user.clone(),
         })
     }
 
@@ -139,7 +139,7 @@ impl VpnBackend for HttpBackend {
         let resp = self
             .client
             .get(format!("{}/vpn/servers", self.base_url))
-            .bearer_auth(&self.token)
+            .bearer_auth(self.token.as_str())
             .send()?;
 
         if !resp.status().is_success() {
@@ -154,7 +154,7 @@ impl VpnBackend for HttpBackend {
         let resp = self
             .client
             .post(format!("{}/vpn/connect", self.base_url))
-            .bearer_auth(&self.token)
+            .bearer_auth(self.token.as_str())
             .json(&serde_json::json!({ "server_id": server_id }))
             .send()?;
 
@@ -170,7 +170,7 @@ impl VpnBackend for HttpBackend {
         let resp = self
             .client
             .post(format!("{}/vpn/disconnect", self.base_url))
-            .bearer_auth(&self.token)
+            .bearer_auth(self.token.as_str())
             .json(&serde_json::json!({ "server_id": server_id }))
             .send()?;
 
@@ -185,7 +185,7 @@ impl VpnBackend for HttpBackend {
         let resp = self
             .client
             .get(format!("{}/vpn/status", self.base_url))
-            .bearer_auth(&self.token)
+            .bearer_auth(self.token.as_str())
             .send()?;
 
         if !resp.status().is_success() {
@@ -200,7 +200,7 @@ impl VpnBackend for HttpBackend {
         let resp = self
             .client
             .put(format!("{}/profile/update", self.base_url))
-            .bearer_auth(&self.token)
+            .bearer_auth(self.token.as_str())
             .json(&serde_json::json!({ "username": username, "password": password }))
             .send()?;
 
@@ -216,7 +216,7 @@ impl VpnBackend for HttpBackend {
         let resp = self
             .client
             .delete(format!("{}/profile/delete", self.base_url))
-            .bearer_auth(&self.token)
+            .bearer_auth(self.token.as_str())
             .send()?;
 
         if !resp.status().is_success() {

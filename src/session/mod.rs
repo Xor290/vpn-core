@@ -1,4 +1,5 @@
 pub mod manager;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use thiserror::Error;
 
@@ -8,8 +9,9 @@ use crate::wireguard::{WireGuardConfig, WireGuardError};
 // ---------------------------------------------------------------------------
 // Struct générique
 // ---------------------------------------------------------------------------
-
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Session<B: VpnBackend> {
+    #[zeroize(skip)]
     pub(crate) backend: B,
     pub(crate) token: String,
     pub(crate) user: UserInfo,
