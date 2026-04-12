@@ -66,7 +66,11 @@ impl HttpBackend {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             token: Zeroizing::new(token.to_string()),
-            client: reqwest::blocking::Client::new(),
+            client: reqwest::blocking::Client::builder()
+                .min_tls_version(reqwest::tls::Version::TLS_1_2)
+                .https_only(true)
+                .build()
+                .expect("failed to build HTTP client"),
         }
     }
 
