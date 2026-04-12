@@ -62,29 +62,6 @@ pub enum BackendError {
     Parse(String),
 }
 
-// ---------------------------------------------------------------------------
-// Trait principal
-// ---------------------------------------------------------------------------
-
-/// Abstraction d'un backend VPN.
-///
-/// Implémenter ce trait suffit pour utiliser `Session<B>` avec n'importe
-/// quel backend (REST, gRPC, mock, ...).
-///
-/// # Exemple minimal
-///
-/// ```rust,ignore
-/// struct MyBackend { token: String }
-///
-/// impl VpnBackend for MyBackend {
-///     type Error = BackendError;
-///
-///     fn login(&self, username: &str, password: &str) -> Result<AuthResponse, Self::Error> {
-///         // appel HTTP, gRPC, etc.
-///     }
-///     // ...
-/// }
-/// ```
 pub trait VpnBackend {
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -98,8 +75,6 @@ pub trait VpnBackend {
 
     fn list_servers(&self) -> Result<Vec<Server>, Self::Error>;
 
-    /// Demande une connexion au serveur `server_id`.
-    /// Retourne une `ConnectionInfo` contenant la config WireGuard INI.
     fn connect(&self, server_id: u64) -> Result<ConnectionInfo, Self::Error>;
 
     fn disconnect(&self, server_id: u64) -> Result<(), Self::Error>;
