@@ -1,23 +1,24 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use zeroize::Zeroize;
 
 // ---------------------------------------------------------------------------
 // Types communs
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Zeroize)]
 pub struct UserInfo {
     pub id: u64,
     pub username: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AuthResponse {
     pub token: String,
     pub user: UserInfo,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Zeroize)]
 pub struct Server {
     pub id: u64,
     pub name: String,
