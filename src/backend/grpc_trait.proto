@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package vpncore;
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message AuthResponse {
+  string token = 1;
+  UserInfo user = 2;
+}
+
+message LogoutRequest {
+  string token = 1;
+}
+
+message Empty {}
+
+message ServerList {
+  repeated Server servers = 1;
+}
+
+message Server {
+  uint64 id = 1;
+  string name = 2;
+  string country = 3;
+  string ip = 4;
+  string public_key = 5;
+  uint32 listen_port = 6;
+  string subnet = 7;
+  bool is_active = 8;
+}
+
+message ConnectRequest {
+  uint64 server_id = 1;
+}
+
+message ConnectionInfo {
+  string peer_ip = 1;
+  string config = 2;
+}
+
+message DisconnectRequest {
+  uint64 server_id = 1;
+}
+
+message PeerStatusList {
+  repeated PeerStatus statuses = 1;
+}
+
+message PeerStatus {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  uint64 server_id = 3;
+  string public_key = 4;
+  string allowed_ip = 5;
+  Server server = 6;
+}
+
+message UpdateProfileRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message UserInfo {
+  uint64 id = 1;
+  string username = 2;
+}
+
+service VpnService {
+  rpc Login(LoginRequest) returns (AuthResponse);
+  rpc Register(RegisterRequest) returns (AuthResponse);
+  rpc Logout(LogoutRequest) returns (Empty);
+  rpc ListServers(Empty) returns (ServerList);
+  rpc Connect(ConnectRequest) returns (ConnectionInfo);
+  rpc Disconnect(DisconnectRequest) returns (Empty);
+  rpc PeerStatus(Empty) returns (PeerStatusList);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UserInfo);
+  rpc DeleteAccount(Empty) returns (Empty);
+}

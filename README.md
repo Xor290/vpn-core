@@ -10,7 +10,8 @@ Contient toute la logique métier : authentification, gestion de session, parsin
 - Gestion de session : connexion, déconnexion, switch de serveur, profil
 - Parsing et sérialisation des configs WireGuard (format INI)
 - Backend HTTP inclus (feature `http-backend`, activé par défaut)
-- Supprime les secret en mémoire au moment d'un drop
+- Service RPC natif Rust via `tarpc` (sans dépendance gRPC/protoc)
+- Supprime les secrets en mémoire au moment d'un drop
 
 ## Ce que vpn-core NE fait PAS
 
@@ -30,19 +31,21 @@ vpn-core/
 └── src/
     ├── lib.rs
     ├── backend/
-    │   ├── async_core.rs   # Trait AsyncVpnBackend 
-    │   ├── core.rs         # Trait VpnBackend + types communs
-    │   ├── http.rs         # Implémentation HTTP (feature: http-backend)
-    │   └── mod.rs          # Re-exports publics
+    │   ├── async_core.rs      # Trait AsyncVpnBackend
+    │   ├── core.rs            # Trait VpnBackend + types communs
+    │   ├── grpc.rs  # Service tarpc (RPC natif Rust)
+    │   ├── grpc_trait.proto   # Définition Protobuf (référence gRPC)
+    │   ├── http.rs            # Implémentation HTTP (feature: http-backend)
+    │   └── mod.rs             # Re-exports publics
     ├── custom_debug/
     │   ├── mod.rs
-    │   └── debug.rs        # Impls Debug custom (secrets redactés)
+    │   └── debug.rs           # Impls Debug custom (secrets redactés)
     ├── session/
-    │   ├── mod.rs          # Session<B> + SessionError<E>
-    │   └── manager.rs      # login, connect, disconnect, switch_server...
+    │   ├── mod.rs             # Session<B> + SessionError<E>
+    │   └── manager.rs         # login, connect, disconnect, switch_server...
     └── wireguard/
         ├── mod.rs
-        └── config.rs       # WireGuardConfig parse/sérialise
+        └── config.rs          # WireGuardConfig parse/sérialise
 ```
 
 ## Dépendances
@@ -52,6 +55,7 @@ vpn-core/
 | `reqwest` | Client HTTP | Oui (`http-backend`) |
 | `serde` | Sérialisation | Non |
 | `serde_json` | JSON | Oui (`http-backend`) |
+| `tarpc` | RPC natif Rust (service trait + transport) | Non |
 | `thiserror` | Gestion d'erreurs | Non |
 | `zeroize` | Zéroïsation mémoire des secrets | Non |
 
