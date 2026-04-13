@@ -8,8 +8,15 @@ name = "vpn_core"
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [features]
-default = ["http-backend"]
+default = ["http-async"]
 http-backend = ["dep:reqwest", "dep:serde_json"]
+# Active HttpBackend::new_insecure() pour les tests contre le dev-server HTTP local.
+testing = ["http-backend"]
+# Active la lecture d'un fichier de configuration TOML pour choisir le backend.
+config = ["dep:toml"]
+# Backend HTTP asynchrone (reqwest async + tokio).
+http-async = ["dep:reqwest", "dep:serde_json", "dep:tokio"]
+testing-async = ["http-async"]
 
 [dependencies]
 reqwest = { version = "0.12", features = ["blocking", "json"], optional = true }
@@ -18,3 +25,8 @@ serde_json = { version = "1", optional = true }
 tarpc = "0.37.0"
 thiserror = "2"
 zeroize = { version = "1.8.2", features = ["derive"] }
+toml = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

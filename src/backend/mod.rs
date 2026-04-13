@@ -1,6 +1,12 @@
 pub mod async_core;
 pub mod core;
-pub mod grpc_full_rust;
+pub mod grpc;
+
+#[cfg(feature = "http-async")]
+pub mod http_async;
+pub use async_core::{
+    AuthResponseAsync, BackendErrorAsync, ConnectionInfoAsync, PeerStatusAsync, ServerAsync, UserInfoAsync,
+};
 #[cfg(feature = "http-backend")]
 pub mod http;
 pub use core::{

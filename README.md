@@ -11,6 +11,7 @@ Contient toute la logique métier : authentification, gestion de session, parsin
 - Parsing et sérialisation des configs WireGuard (format INI)
 - Backend HTTP inclus (feature `http-backend`, activé par défaut)
 - Service RPC natif Rust via `tarpc` (sans dépendance gRPC/protoc)
+- Configuration TOML pour choisir le backend à l'exécution (feature `config`)
 - Supprime les secrets en mémoire au moment d'un drop
 
 ## Ce que vpn-core NE fait PAS
@@ -28,12 +29,19 @@ Le code appelant reçoit la config WireGuard parsée et l'applique selon la plat
 ```
 vpn-core/
 ├── Cargo.toml
+├── vpn-core.toml              # Configuration du backend (feature: config)
+├── docker-compose.yml         # Lance le dev-server pour les tests
+├── dev-server/                # Serveur mock Axum (tests d'intégration)
+│   ├── Cargo.toml
+│   ├── Dockerfile
+│   └── src/main.rs
 └── src/
     ├── lib.rs
+    ├── config.rs              # VpnConfig + BackendKind (feature: config)
     ├── backend/
     │   ├── async_core.rs      # Trait AsyncVpnBackend
     │   ├── core.rs            # Trait VpnBackend + types communs
-    │   ├── grpc.rs  # Service tarpc (RPC natif Rust)
+    │   ├── grpc.rs            # Service tarpc (RPC natif Rust)
     │   ├── grpc_trait.proto   # Définition Protobuf (référence gRPC)
     │   ├── http.rs            # Implémentation HTTP (feature: http-backend)
     │   └── mod.rs             # Re-exports publics
@@ -57,6 +65,7 @@ vpn-core/
 | `serde_json` | JSON | Oui (`http-backend`) |
 | `tarpc` | RPC natif Rust (service trait + transport) | Non |
 | `thiserror` | Gestion d'erreurs | Non |
+| `toml` | Parsing du fichier de configuration | Oui (`config`) |
 | `zeroize` | Zéroïsation mémoire des secrets | Non |
 
 ## Installation
@@ -65,8 +74,52 @@ vpn-core/
 # Avec le backend HTTP (par défaut)
 vpn-core = "0.1"
 
+# Avec la configuration TOML
+vpn-core = { version = "0.1", features = ["config"] }
+
 # Sans le backend HTTP (backend custom)
 vpn-core = { version = "0.1", default-features = false }
+```
+
+## Configuration (feature `config`)
+
+Créer un fichier `vpn-core.toml` à la racine du projet (ou dans `~/.config/vpn-core/config.toml`) :
+
+```toml
+[backend]
+kind = "http"                      # "http" | "async" | "grpc"
+url  = "https://api.example.com"
+```
+
+Valeurs de `kind` :
+
+| Valeur | Backend utilisé |
+|---|---|
+| `http` | `HttpBackend` — client HTTP bloquant (feature `http-backend`) |
+| `async` | À implémenter via le trait `AsyncVpnBackend` |
+| `grpc` | À implémenter via le service tarpc `VpnService` |
+
+Utilisation dans le code :
+
+```rust
+use vpn_core::config::{VpnConfig, BackendKind};
+
+let cfg = VpnConfig::load_or_default();
+
+match cfg.backend.kind {
+    BackendKind::Http => {
+        let backend = HttpBackend::new(&cfg.backend.url, "");
+        let session = Session::login(backend, "alice", "secret")?;
+    }
+    BackendKind::Async => { /* votre impl AsyncVpnBackend */ }
+    BackendKind::Grpc  => { /* votre impl tarpc VpnService */ }
+}
+```
+
+Le chemin du fichier peut aussi être défini via la variable d'environnement `VPN_CONFIG` :
+
+```bash
+VPN_CONFIG=/etc/vpn-core/prod.toml ./mon-app
 ```
 
 ## Utilisation
@@ -152,6 +205,29 @@ let ini = config.to_ini()?;
 | Injection INI via newline dans `to_ini()` | LOW | Corrigé — validation des champs avant sérialisation |
 | `PersistentKeepalive` parsé sans validation de plage | MEDIUM | Corrigé — parse en `u16` (borné 0–65535 par le type) |
 
+## Tests d'intégration
+
+Les tests d'intégration tournent contre un serveur mock local (`dev-server`) lancé via Docker.
+
+**Données préconfigurées :** `alice / pass123`, `bob / hunter2`, 2 serveurs VPN fictifs (FR, DE).
+
+```bash
+# 1. Lancer le serveur mock
+docker compose up -d --build --wait
+
+# 2. Lancer les tests
+cargo test --features testing --test integration
+
+# 3. Arrêter le serveur
+docker compose down
+```
+
+La variable `VPN_TEST_URL` permet de pointer sur une autre instance :
+
+```bash
+VPN_TEST_URL=http://staging.example.com:8080 cargo test --features testing --test integration
+```
+
 ## Build
 
 ```bash
@@ -159,6 +235,9 @@ cargo build --lib
 
 # Sans le backend HTTP
 cargo build --lib --no-default-features
+
+# Avec la feature config (lecture TOML)
+cargo build --lib --features config
 ```
 
 ## Crate types

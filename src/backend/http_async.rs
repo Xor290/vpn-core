@@ -1,27 +1,28 @@
-use super::core::{
-    AuthResponse, BackendError, ConnectionInfo, PeerStatus, Server, UserInfo, VpnBackend,
+use super::async_core::{
+    AsyncVpnBackend, AuthResponseAsync, BackendErrorAsync, ConnectionInfoAsync, PeerStatusAsync,
+    ServerAsync, UserInfoAsync,
 };
 use serde::Deserialize;
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 // ---------------------------------------------------------------------------
-// Erreur HTTP
+// Erreur propre au backend HTTP async
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Error)]
-pub enum ApiError {
+#[derive(Error, Debug)]
+pub enum HttpAsyncError {
     #[error("request failed: {0}")]
     Request(#[from] reqwest::Error),
     #[error("API error: {0}")]
     Api(String),
 }
 
-impl From<ApiError> for BackendError {
-    fn from(e: ApiError) -> Self {
+impl From<HttpAsyncError> for BackendErrorAsync {
+    fn from(e: HttpAsyncError) -> Self {
         match e {
-            ApiError::Request(e) => BackendError::Request(e.to_string()),
-            ApiError::Api(msg) => BackendError::Api(msg),
+            HttpAsyncError::Request(e) => BackendErrorAsync::Request(e.to_string()),
+            HttpAsyncError::Api(msg) => BackendErrorAsync::Api(msg),
         }
     }
 }
@@ -31,60 +32,55 @@ impl From<ApiError> for BackendError {
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-struct ApiSuccess<T> {
+struct ApiSuccessAsync<T> {
     data: T,
 }
 
 #[derive(Deserialize)]
-struct ApiErrorResp {
+struct ApiErrorRespAsync {
     error: String,
 }
 
 #[derive(Deserialize, Zeroize, ZeroizeOnDrop)]
-struct AuthData {
+struct AuthDataAsync {
     token: String,
-    user: UserInfo,
+    user: UserInfoAsync,
 }
 
 #[derive(Deserialize)]
-struct ProfileUpdateResp {
-    user: UserInfo,
+struct ProfileUpdateRespAsync {
+    user: UserInfoAsync,
 }
 
 // ---------------------------------------------------------------------------
-// Struct
+// Backend
 // ---------------------------------------------------------------------------
 
-pub struct HttpBackend {
+pub struct HttpAsyncBackend {
     pub(crate) base_url: String,
     pub(crate) token: Zeroizing<String>,
-    pub(crate) client: reqwest::blocking::Client,
+    pub(crate) client: reqwest::Client,
 }
 
-impl HttpBackend {
+impl HttpAsyncBackend {
     pub fn new(base_url: &str, token: &str) -> Self {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             token: Zeroizing::new(token.to_string()),
-            client: reqwest::blocking::Client::builder()
+            client: reqwest::Client::builder()
                 .min_tls_version(reqwest::tls::Version::TLS_1_2)
                 .https_only(true)
                 .build()
-                .expect("failed to build HTTP client"),
+                .expect("failed to build async HTTP client"),
         }
     }
 
-    /// Constructeur sans TLS — uniquement pour les tests contre le dev-server local (HTTP).
-    /// Nécessite la feature `testing`.
-    /// Nécessite la feature `testing`.
-    #[cfg(feature = "testing")]
+    #[cfg(any(feature = "testing", feature = "testing-async"))]
     pub fn new_insecure(base_url: &str, token: &str) -> Self {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             token: Zeroizing::new(token.to_string()),
-            client: reqwest::blocking::Client::builder()
-                .build()
-                .expect("failed to build insecure HTTP client"),
+            client: reqwest::Client::new(),
         }
     }
 
@@ -92,155 +88,176 @@ impl HttpBackend {
         self.token = Zeroizing::new(token.to_string());
     }
 
-    fn parse_error(&self, resp: reqwest::blocking::Response) -> ApiError {
-        match resp.json::<ApiErrorResp>() {
-            Ok(e) => ApiError::Api(e.error),
-            Err(_) => ApiError::Api("unknown error".into()),
+    fn parse_error(resp_text: &str) -> HttpAsyncError {
+        #[derive(Deserialize)]
+        struct E {
+            error: String,
+        }
+        match serde_json::from_str::<E>(resp_text) {
+            Ok(e) => HttpAsyncError::Api(e.error),
+            Err(_) => HttpAsyncError::Api("unknown error".into()),
         }
     }
 }
 
-impl VpnBackend for HttpBackend {
-    type Error = ApiError;
+impl AsyncVpnBackend for HttpAsyncBackend {
+    type Error = HttpAsyncError;
 
-    fn login(&self, username: &str, password: &str) -> Result<AuthResponse, Self::Error> {
+    fn set_auth_token(&mut self, token: &str) {
+        self.set_token(token);
+    }
+
+    async fn login(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<AuthResponseAsync, Self::Error> {
         let resp = self
             .client
             .post(format!("{}/auth/login", self.base_url))
             .json(&serde_json::json!({ "username": username, "password": password }))
-            .send()?;
-
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(self.parse_error(resp));
+            let text = resp.text().await?;
+            return Err(Self::parse_error(&text));
         }
 
-        let body: ApiSuccess<AuthData> = resp.json()?;
-        Ok(AuthResponse {
+        let body: ApiSuccessAsync<AuthDataAsync> = resp.json().await?;
+        Ok(AuthResponseAsync {
             token: body.data.token.clone(),
             user: body.data.user.clone(),
         })
     }
 
-    fn register(&self, username: &str, password: &str) -> Result<AuthResponse, Self::Error> {
+    async fn register(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<AuthResponseAsync, Self::Error> {
         let resp = self
             .client
             .post(format!("{}/auth/register", self.base_url))
             .json(&serde_json::json!({ "username": username, "password": password }))
-            .send()?;
-
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(self.parse_error(resp));
+            let text = resp.text().await?;
+            return Err(Self::parse_error(&text));
         }
-
-        let body: ApiSuccess<AuthData> = resp.json()?;
-        Ok(AuthResponse {
+        let body: ApiSuccessAsync<AuthDataAsync> = resp.json().await?;
+        Ok(AuthResponseAsync {
             token: body.data.token.clone(),
             user: body.data.user.clone(),
         })
     }
 
-    fn logout(&self, token: &str) -> Result<(), Self::Error> {
+    async fn logout(&self, token: &str) -> Result<(), Self::Error> {
         let resp = self
             .client
             .post(format!("{}/auth/logout", self.base_url))
             .bearer_auth(token)
-            .send()?;
-
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(self.parse_error(resp));
+            let text = resp.text().await?;
+            return Err(Self::parse_error(&text));
         }
-
         Ok(())
     }
 
-    fn list_servers(&self) -> Result<Vec<Server>, Self::Error> {
+    async fn list_servers(&self) -> Result<Vec<ServerAsync>, Self::Error> {
         let resp = self
             .client
             .get(format!("{}/vpn/servers", self.base_url))
             .bearer_auth(self.token.as_str())
-            .send()?;
-
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(self.parse_error(resp));
+            let text = resp.text().await?;
+            return Err(Self::parse_error(&text));
         }
-
-        let body: ApiSuccess<Vec<Server>> = resp.json()?;
+        let body: ApiSuccessAsync<Vec<ServerAsync>> = resp.json().await?;
         Ok(body.data)
     }
 
-    fn connect(&self, server_id: u64) -> Result<ConnectionInfo, Self::Error> {
+    async fn connect(&self, server_id: u64) -> Result<ConnectionInfoAsync, Self::Error> {
         let resp = self
             .client
             .post(format!("{}/vpn/connect", self.base_url))
             .bearer_auth(self.token.as_str())
             .json(&serde_json::json!({ "server_id": server_id }))
-            .send()?;
-
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(self.parse_error(resp));
+            let text = resp.text().await?;
+            return Err(Self::parse_error(&text));
         }
-
-        let body: ApiSuccess<ConnectionInfo> = resp.json()?;
+        let body: ApiSuccessAsync<ConnectionInfoAsync> = resp.json().await?;
         Ok(body.data)
     }
 
-    fn disconnect(&self, server_id: u64) -> Result<(), Self::Error> {
+    async fn disconnect(&self, server_id: u64) -> Result<(), Self::Error> {
         let resp = self
             .client
             .post(format!("{}/vpn/disconnect", self.base_url))
             .bearer_auth(self.token.as_str())
             .json(&serde_json::json!({ "server_id": server_id }))
-            .send()?;
-
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(self.parse_error(resp));
+            let text = resp.text().await?;
+            return Err(Self::parse_error(&text));
         }
-
         Ok(())
     }
 
-    fn peer_status(&self) -> Result<Vec<PeerStatus>, Self::Error> {
+    async fn peer_status(&self) -> Result<Vec<PeerStatusAsync>, Self::Error> {
         let resp = self
             .client
             .get(format!("{}/vpn/status", self.base_url))
             .bearer_auth(self.token.as_str())
-            .send()?;
-
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(self.parse_error(resp));
+            let text = resp.text().await?;
+            return Err(Self::parse_error(&text));
         }
-
-        let body: ApiSuccess<Vec<PeerStatus>> = resp.json()?;
+        let body: ApiSuccessAsync<Vec<PeerStatusAsync>> = resp.json().await?;
         Ok(body.data)
     }
 
-    fn update_profile(&self, username: &str, password: &str) -> Result<UserInfo, Self::Error> {
+    async fn update_profile(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<UserInfoAsync, Self::Error> {
         let resp = self
             .client
             .put(format!("{}/profile/update", self.base_url))
             .bearer_auth(self.token.as_str())
             .json(&serde_json::json!({ "username": username, "password": password }))
-            .send()?;
-
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(self.parse_error(resp));
+            let text = resp.text().await?;
+            return Err(Self::parse_error(&text));
         }
-
-        let body: ProfileUpdateResp = resp.json()?;
+        let body: ProfileUpdateRespAsync = resp.json().await?;
         Ok(body.user)
     }
 
-    fn delete_account(&self) -> Result<(), Self::Error> {
+    async fn delete_account(&self) -> Result<(), Self::Error> {
         let resp = self
             .client
             .delete(format!("{}/profile/delete", self.base_url))
             .bearer_auth(self.token.as_str())
-            .send()?;
-
+            .send()
+            .await?;
         if !resp.status().is_success() {
-            return Err(self.parse_error(resp));
+            let text = resp.text().await?;
+            return Err(Self::parse_error(&text));
         }
-
         Ok(())
     }
 }

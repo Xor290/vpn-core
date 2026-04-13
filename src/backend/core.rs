@@ -71,6 +71,10 @@ pub trait VpnBackend {
     fn register(&self, username: &str, password: &str) -> Result<AuthResponse, Self::Error>;
     fn logout(&self, token: &str) -> Result<(), Self::Error>;
 
+    /// Appelé par `Session` après login/register pour stocker le token dans le backend.
+    /// Implémentation par défaut : no-op (pour les backends qui n'en ont pas besoin).
+    fn set_auth_token(&mut self, _token: &str) {}
+
     // -- Serveurs & connexion -----------------------------------------------
 
     fn list_servers(&self) -> Result<Vec<Server>, Self::Error>;

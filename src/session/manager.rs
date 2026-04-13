@@ -1,16 +1,18 @@
-use super::{Session, SessionError};
+use super::{Session, SessionAsync, SessionAsyncError, SessionError};
+use crate::backend::async_core::AsyncVpnBackend;
 use crate::backend::core::{Server, UserInfo, VpnBackend};
 use crate::wireguard::WireGuardConfig;
 
 impl<B: VpnBackend> Session<B> {
     pub fn login(
-        backend: B,
+        mut backend: B,
         username: &str,
         password: &str,
     ) -> Result<Self, SessionError<B::Error>> {
         let auth = backend
             .login(username, password)
             .map_err(SessionError::Backend)?;
+        backend.set_auth_token(&auth.token);
         Ok(Self {
             backend,
             token: auth.token,
@@ -21,13 +23,14 @@ impl<B: VpnBackend> Session<B> {
     }
 
     pub fn register(
-        backend: B,
+        mut backend: B,
         username: &str,
         password: &str,
     ) -> Result<Self, SessionError<B::Error>> {
         let auth = backend
             .register(username, password)
             .map_err(SessionError::Backend)?;
+        backend.set_auth_token(&auth.token);
         Ok(Self {
             backend,
             token: auth.token,
@@ -124,5 +127,52 @@ impl<B: VpnBackend> Session<B> {
         self.backend
             .logout(&self.token)
             .map_err(SessionError::Backend)
+    }
+}
+
+impl<B: AsyncVpnBackend> SessionAsync<B> {
+    pub async fn login(
+        mut backend: B,
+        username: &str,
+        password: &str,
+    ) -> Result<Self, SessionAsyncError<B::Error>> {
+        let auth = backend
+            .login(username, password)
+            .await
+            .map_err(SessionAsyncError::Backend)?;
+        backend.set_auth_token(&auth.token);
+        Ok(Self {
+            backend,
+            token: auth.token,
+            user: auth.user,
+            current_server: None,
+            config: None,
+        })
+    }
+
+    pub async fn register(
+        mut backend: B,
+        username: &str,
+        password: &str,
+    ) -> Result<Self, SessionAsyncError<B::Error>> {
+        let auth = backend
+            .register(username, password)
+            .await
+            .map_err(SessionAsyncError::Backend)?;
+        backend.set_auth_token(&auth.token);
+        Ok(Self {
+            backend,
+            token: auth.token,
+            user: auth.user,
+            current_server: None,
+            config: None,
+        })
+    }
+
+    pub async fn logout(self) -> Result<(), SessionAsyncError<B::Error>> {
+        self.backend
+            .logout(&self.token)
+            .await
+            .map_err(SessionAsyncError::Backend)
     }
 }

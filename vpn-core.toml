@@ -1,0 +1,4 @@
+[backend]
+# Choisir le backend : "http" | "async" | "grpc"
+kind = "async"
+url  = "http://localhost:8080"
