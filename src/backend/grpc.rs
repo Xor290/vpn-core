@@ -1,7 +1,7 @@
 use crate::backend::{AuthResponse, ConnectionInfo, PeerStatus, Server, UserInfo};
 
 #[tarpc::service]
-trait VpnService {
+pub trait VpnService {
     async fn login(username: String, password: String) -> Result<AuthResponse, String>;
     async fn register(username: String, password: String) -> Result<AuthResponse, String>;
     async fn logout(token: String) -> Result<(), String>;
